@@ -6,16 +6,16 @@
 |---|---|---|
 | 1.1 | C | 表文件按页（8KB）分配，插入一行后文件就是一个完整的页。已实测：`ls -l` 结果为 8192 字节 |
 | 1.2 | D | `PortalRun()` 内部调用 `ExecutorRun()`，SQL 的执行在其中完成；`CreatePortal`、`PortalDefineQuery` 只是创建和填充 Portal，`PortalStart` 做执行前的初始化 |
-| 1.3 | 无正确选项 | 见下方说明 |
+| 1.3 | AC | 两个扫描节点都是 Seq Scan（全表扫描），排除"索引扫描"的 B、D。A、C 对建表、探测的描述需更正，见下方说明 |
 | 1.4 | BCD | A 的说法忽略了方法：只读静态代码，很难看清运行时数据怎样变化 |
 | 1.5 | BC | 用哪张表建 HASH 表由优化器按代价决定，不一定是过滤后的 S；题图的实际计划恰恰是用 R 建的 HASH 表，所以 A、D 错 |
 | 1.6 | AB | MergeJoin 算子只有左右两个输入，但每个输入可以是另一个 Join 的结果，多表 Join 靠算子嵌套实现，不会报错，所以 C、D 错 |
 | 1.7 | B | `ExecutorRun()` 先判断 `ExecutorRun_hook`，有则调用 Hook，否则调用 `standard_ExecutorRun()`。这层中转就是为了让扩展（如 pg_stat_statements）能注入自己的函数 |
-| 1.8 | A | `ExecMergeJoin()` 是 Join 算子自身的 Next()，它由上一层（投影）循环中的 `child.Next()` 调用；`left.Next()`、`right.Next()` 是 Join 去调用它的子节点 |
+| 1.8 | BC | `ExecMergeJoin()` 是中间层 Join 算子自身的 Next()，其中分别向左树、右树取元组（课上图中 `case 左树`、`case 右树`），对应中间层的 `left.Next()` 和 `right.Next()`。A 是最上层投影算子的 Next()，D 是扫描节点的 Next() |
 | 1.9 | A | `ExecutePlan()` 循环调用根节点的 `ExecProcNode()` 取一行、写入结果集，对应最上层"for t in child.Next(): emit(...)"的文本框 |
 | 1.10 | D | 过滤条件 `S.value > 100` 下推到 S 表的扫描节点，在 `ExecScan()` 中用 qual 判断，只返回满足条件的行；按题 1.5 图，S 在 Join 的右树 |
 
-**1.3 说明**：计划中 `Hash` 节点挂在 `Seq Scan on r` 上面，说明是读出 r 的每一行**构建** HASH 表；`Seq Scan on s` 是外表，读出 s 的每一行到 HASH 表中**探测**。A 说扫描 s 后构建 HASH 表，C 说读 r 去 HASH 表中搜索，都把两张表的角色说反了；B、D 说的是索引扫描，计划里是全表扫描（Seq Scan）。若题目原意是"s 探测、r 构建"，则 A、C 的表名写反了，建议向老师确认。
+**1.3 说明**：A/B、C/D 两两之间只差"全表扫描"和"索引扫描"，本题考点是扫描方式，计划中两个扫描都是 Seq Scan，故选 A、C。但 A、C 对两张表角色的描述与计划相反：`Hash` 节点挂在 `Seq Scan on r` 上面，实际是读出 r 的每一行**构建** HASH 表；`Seq Scan on s` 是外表，读出 s 的每一行（经过 `value > 100` 过滤）到 HASH 表中**探测**。
 
 ## 2. 问答分析题
 
